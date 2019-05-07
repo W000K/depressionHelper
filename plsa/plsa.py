@@ -287,29 +287,77 @@ class Corpus(object):
 
 
 def main():
-    documents_path = 'data/StrippedPosts.txt'
+    documents_path = 'data/userTranscript.txt'
+    helpdocs_path = 'data/helpDocs.txt'
+
+    # build help doc database, takes a little while to do... ~3min
+    helpDocs = []
+    with open(helpdocs_path,encoding="utf-8") as fp2:
+        for line in fp2:
+            corpus = Corpus(line)  # instantiate corpus
+            corpus.build_corpus(line)
+            corpus.build_vocabulary()
+            number_of_topics = 20
+            max_iterations = 50
+            epsilon = 0.001
+            corpus.plsa(number_of_topics, max_iterations, epsilon)
+
+            # print('     ***** HELP DOC TOPIC WORD DISTR *****')
+            idx = np.argmax(corpus.document_topic_prob)
+            chosen_topic = corpus.topic_word_prob[idx]
+            chosen_word_idx = chosen_topic.argsort()[-20:][::-1]
+            help_topics = []
+            for idx in chosen_word_idx:
+                chosen_word = corpus.vocabulary[idx]
+                help_topics.append(chosen_word)
+            helpDocs.append(help_topics)
+    print('Help doc db built')
+
+    # save a local data structure for all help docs for future usage
+    allHelpDocs = open('data/helpDocs.txt', "r")
+    docs = allHelpDocs.read().splitlines()
+
+    # now for each user transcript...
     with open(documents_path,encoding="utf-8") as fp:
+
+        # for each user transcript, recommend documents!
         for line in fp:
             corpus = Corpus(line)  # instantiate corpus
             corpus.build_corpus(line)
             corpus.build_vocabulary()
-            #print(corpus.vocabulary)
-            #print("Vocabulary size:" + str(len(corpus.vocabulary)))
-            #print("Number of documents:" + str(len(corpus.documents)))
-            number_of_topics = 5
+            number_of_topics = 20
             max_iterations = 50
             epsilon = 0.001
             corpus.plsa(number_of_topics, max_iterations, epsilon)
-            #print('***** TOPICS PROB FOR THIS DOC*****')
-            #print(DataFrame(corpus.document_topic_prob))
 
             print('***** TOPIC WORD DISTR *****')
             idx = np.argmax(corpus.document_topic_prob)
             chosen_topic = corpus.topic_word_prob[idx]
             chosen_word_idx = chosen_topic.argsort()[-3:][::-1]
+            topics = []
             for idx in chosen_word_idx:
                 chosen_word = corpus.vocabulary[idx]
-                print(chosen_word)
+                topics.append(chosen_word)
+            print(topics)
+            
+            # compare the user transcript vector with every help doc vector, get top 10 documents!
+            sims = []
+            for helpDoc in helpDocs:
+                a = set(helpDoc) 
+                b = set(topics)
+                c = a.intersection(b)
+
+                #jacquard similarity: https://towardsdatascience.com/overview-of-text-similarity-metrics-3397c4601f50
+                sim = float(len(c)) / (len(a) + len(b) - len(c))
+                sims.append(sim)
+            sims = np.array(sims)
+            # get the 5 best doc
+
+            fiveBestDocs = sims.argsort()[-5:][::-1]
+            print('***** HERES WHAT I RECOMMEND... *****')
+            for idx in fiveBestDocs:
+                # print(idx)
+                print(docs[idx])
 
 
 
